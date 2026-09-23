@@ -62,3 +62,14 @@ It does not check connectivity with Stark Bank.
 
 Local environment files and PEM keys are excluded through `.gitignore`.
 Never commit private keys or other credentials.
+
+## Tests
+
+After installing the dependencies, run:
+
+```powershell
+python -m pytest -v
+```
+
+The current test checks that `/health` returns HTTP 200 and the expected JSON.
+It runs locally without starting Uvicorn or accessing Stark Bank.
