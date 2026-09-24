@@ -73,3 +73,26 @@ python -m pytest -v
 
 The current test checks that `/health` returns HTTP 200 and the expected JSON.
 It runs locally without starting Uvicorn or accessing Stark Bank.
+
+## Sandbox connection check
+
+Create a Sandbox Project and register its public key.
+Store the corresponding private key locally at `.keys/private-key.pem`.
+
+In PowerShell, set the Project ID for the current terminal:
+
+```powershell
+$env:STARKBANK_PROJECT_ID = "YOUR_SANDBOX_PROJECT_ID"
+```
+
+Run the read-only connection check:
+
+```powershell
+python check_connection.py
+```
+
+The script queries the Sandbox balance without creating invoices or transfers.
+The balance amount is expressed in cents.
+
+The Project must allow the public outbound IP used by your connection.
+Never commit the private key.
