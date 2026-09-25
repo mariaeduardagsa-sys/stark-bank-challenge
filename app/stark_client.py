@@ -13,7 +13,7 @@ def get_project() -> starkbank.Project:
     private_key_path = project_root / ".keys" / "private-key.pem"
 
     if not private_key_path.is_file():
-        raise RuntimeError("Chave provada não encontrada em .keys/private-key.pem.")
+        raise RuntimeError("Chave privada não encontrada em .keys/private-key.pem.")
     
     return starkbank.Project(
         environment="sandbox",
