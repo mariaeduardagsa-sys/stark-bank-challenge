@@ -16,3 +16,9 @@ htmlcov/
 
 # Configurações do editor
 .vscode/
+
+# Banco de dados local
+/data/
+
+# Memória local para o roteiro do vídeo
+/MEMORIA_DO_PROJETO.md

@@ -9,7 +9,9 @@ Python application being developed for the Stark Bank Back End Developer Trial.
 - Automated tests for the health endpoint, schedule, and draft generation.
 - Sandbox authentication and balance query verified.
 - Manual Sandbox invoice creation and retrieval verified.
-- Automatic batch execution, webhook processing, and transfers are pending.
+- Webhook signature validation and SQLite event storage implemented.
+- Webhook delivery from the Sandbox has not been verified yet.
+- Automatic batch execution, stored-event processing, and transfers are pending.
 
 ## Planned features
 
@@ -123,3 +125,25 @@ Retrieval displays the status, amount, fee, and linked transaction IDs.
 Amounts and fees are expressed in cents.
 
 These scripts are manual integration checks, not the automatic 24-hour run.
+
+## Webhook receiver
+
+Endpoint: POST /webhook/starkbank
+
+The receiver validates the original request body and Digital-Signature
+header using the Stark Bank SDK.
+
+Verified events are stored in data/events.db with pending status before
+a successful response is returned. Repeated event IDs do not overwrite
+existing records.
+
+Responses:
+- 200: event stored or already present.
+- 400: missing or invalid signature, or invalid UTF-8.
+- 503: event storage failed.
+
+The data directory is excluded from Git. Preserve the database between
+application restarts.
+
+Stored events are not processed into transfers yet.
+Automated tests simulate SDK validation and use temporary SQLite databases.
