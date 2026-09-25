@@ -5,8 +5,11 @@ Python application being developed for the Stark Bank Back End Developer Trial.
 ## Current status
 
 - FastAPI application with a health endpoint.
-- Invoice scheduling, webhook processing, and transfers are not implemented yet.
-- Sandbox integration is pending account access.
+- Batch schedule calculation and random invoice draft generation.
+- Automated tests for the health endpoint, schedule, and draft generation.
+- Sandbox authentication and balance query verified.
+- Manual Sandbox invoice creation and retrieval verified.
+- Automatic batch execution, webhook processing, and transfers are pending.
 
 ## Planned features
 
@@ -71,8 +74,8 @@ After installing the dependencies, run:
 python -m pytest -v
 ```
 
-The current test checks that `/health` returns HTTP 200 and the expected JSON.
-It runs locally without starting Uvicorn or accessing Stark Bank.
+Tests cover the health endpoint, batch schedule calculation, and invoice
+draft generation. They run locally without accessing Stark Bank.
 
 ## Sandbox connection check
 
@@ -96,3 +99,27 @@ The balance amount is expressed in cents.
 
 The Project must allow the public outbound IP used by your connection.
 Never commit the private key.
+
+## Manual Sandbox invoices
+
+These scripts require the same credentials as the connection check.
+
+Create one test invoice for R$ 10.00:
+
+```powershell
+python create_invoice.py
+```
+
+Each successful execution creates a new invoice.
+If a request times out, check the Sandbox before retrying.
+
+Retrieve an existing invoice, replacing INVOICE_ID with its ID:
+
+```powershell
+python get_invoice.py INVOICE_ID
+```
+
+Retrieval displays the status, amount, fee, and linked transaction IDs.
+Amounts and fees are expressed in cents.
+
+These scripts are manual integration checks, not the automatic 24-hour run.
