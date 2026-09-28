@@ -5,6 +5,7 @@ import pytest
 
 from app.event_store import (
     list_pending_events,
+    mark_event_for_review,
     save_event,
     update_event_status,
 )
@@ -138,3 +139,40 @@ def test_update_event_status_preserves_finished_event(tmp_path):
         ).fetchone()
 
     assert row == ("processed",)
+    
+def test_mark_event_for_review_preserves_details(tmp_path):
+    database_path = tmp_path / "events.db"
+    save_event(database_path, "event-1", "{}")
+
+    mark_event_for_review(
+        database_path,
+        event_id="event-1",
+        transfer_id="transfer-123",
+        reason="Transfer has status failed",
+    )
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        event = connection.execute(
+            """
+            SELECT status, content
+            FROM webhook_events
+            WHERE event_id = ?
+            """,
+            ("event-1",),
+        ).fetchone()
+
+        review = connection.execute(
+            """
+            SELECT transfer_id, reason
+            FROM event_reviews
+            WHERE event_id = ?
+            """,
+            ("event-1",),
+        ).fetchone()
+
+    assert event == ("needs_review", "{}")
+    assert review == (
+        "transfer-123",
+        "Transfer has status failed",
+    )
+    assert list_pending_events(database_path) == []

@@ -100,7 +100,7 @@ def test_processor_keeps_unfinished_transfer_pending(tmp_path):
 
 
 @pytest.mark.parametrize("status", ["failed", "canceled"])
-def test_processor_reports_unsuccessful_transfer(tmp_path, status):
+def test_processor_marks_unsuccessful_transfer_for_review(tmp_path, status):
     database_path = tmp_path / "events.db"
     content = make_content("credited")
     save_event(database_path, "event-123", content)
@@ -111,12 +111,27 @@ def test_processor_reports_unsuccessful_transfer(tmp_path, status):
             status=status,
         )
 
-        with pytest.raises(RuntimeError, match=f"has status {status}"):
-            process_event(
-                database_path, "event-123", content, object()
-            )
+        result = process_event(
+            database_path, "event-123", content, object()
+        )
 
-    assert read_status(database_path) == "pending"
+    assert result == "needs_review"
+    assert read_status(database_path) == "needs_review"
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        review = connection.execute(
+            """
+            SELECT transfer_id, reason
+            FROM event_reviews
+            WHERE event_id = ?
+            """,
+            ("event-123",),
+        ).fetchone()
+
+    assert review == (
+        "transfer-123",
+        f"Transfer has status {status}",
+    )
 
 
 def test_processor_preserves_pending_event_when_transfer_raises(tmp_path):
@@ -133,12 +148,12 @@ def test_processor_preserves_pending_event_when_transfer_raises(tmp_path):
             )
 
     assert read_status(database_path) == "pending"
-    
+
+
 def test_processor_recovers_after_local_status_update_fails(tmp_path):
     database_path = tmp_path / "events.db"
     content = make_content("credited")
     project = object()
-
     save_event(database_path, "event-123", content)
 
     successful_transfer = SimpleNamespace(
