@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from app.batch_processor import process_batch
-from app.batch_recovery import recover_confirmed_batch
-from app.batch_store import load_batch_payload, save_batch_schedule
+from app.batch_recovery import recover_confirmed_batch, recover_batch
+from app.batch_store import load_batch_payload, save_batch_schedule, load_batch_result
 from app.invoices import Customer
 from random import Random
 from types import SimpleNamespace
@@ -36,6 +36,7 @@ def run_batch(database_path, now):
         ],
         rng=Random(42),
         project=object(),
+        clock=lambda: now,
     )
 
 
@@ -95,3 +96,63 @@ def test_recovery_without_confirmation_preserves_processing_batch(tmp_path):
     assert read_status(database_path) == "processing"
     assert original_payload is not None
     assert load_batch_payload(database_path, 1) == original_payload
+
+def prepare_uncertain_batch(database_path):
+    start_at = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    save_batch_schedule(database_path, start_at)
+
+    with patch("app.batch_processor.issue_invoice_batch") as mock_issue:
+        mock_issue.side_effect = RuntimeError("Response unavailable")
+
+        with pytest.raises(RuntimeError, match="Response unavailable"):
+            run_batch(database_path, start_at)
+            
+def test_recover_batch_saves_api_confirmation_and_completes(tmp_path):
+    database_path = tmp_path / "events.db"
+    prepare_uncertain_batch(database_path)
+    drafts = load_batch_payload(database_path, 1)
+    project = object()
+
+    invoice_ids = [
+        f"invoice-{position}"
+        for position in range(1, len(drafts) + 1)
+    ]
+
+    with patch("app.batch_recovery.find_batch_invoice_ids") as mock_find:
+        mock_find.return_value = invoice_ids
+
+        result = recover_batch(database_path, 1, project)
+
+        mock_find.assert_called_once_with(1, drafts, project)
+
+    assert result == "completed"
+    assert read_status(database_path) == "completed"
+    assert load_batch_result(database_path, 1) == invoice_ids
+
+
+def test_recover_batch_preserves_uncertainty_when_api_does_not_match(tmp_path):
+    database_path = tmp_path / "events.db"
+    prepare_uncertain_batch(database_path)
+
+    with patch("app.batch_recovery.find_batch_invoice_ids") as mock_find:
+        mock_find.return_value = None
+
+        result = recover_batch(database_path, 1, object())
+
+    assert result == "needs_review"
+    assert read_status(database_path) == "needs_review"
+    assert load_batch_result(database_path, 1) is None
+
+
+def test_recover_batch_preserves_state_when_query_fails(tmp_path):
+    database_path = tmp_path / "events.db"
+    prepare_uncertain_batch(database_path)
+
+    with patch("app.batch_recovery.find_batch_invoice_ids") as mock_find:
+        mock_find.side_effect = RuntimeError("Query unavailable")
+
+        with pytest.raises(RuntimeError, match="Query unavailable"):
+            recover_batch(database_path, 1, object())
+
+    assert read_status(database_path) == "processing"
+    assert load_batch_result(database_path, 1) is None

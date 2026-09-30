@@ -433,3 +433,101 @@ def load_batch_result(
         return None
 
     return json.loads(row[0])
+
+def mark_batch_for_review(
+    database_path: Path,
+    batch_number: int,
+) -> None:
+    database_uri = database_path.resolve().as_uri() + "?mode=rw"
+
+    with closing(sqlite3.connect(database_uri, uri=True)) as connection:
+        with connection:
+            cursor = connection.execute(
+                """
+                UPDATE invoice_batches
+                SET status = 'needs_review'
+                WHERE batch_number = ? AND status = 'processing'
+                """,
+                (batch_number,),
+            )
+
+            if cursor.rowcount != 1:
+                raise ValueError("Processing batch not found")
+
+def check_batch_send_window(
+    database_path: Path,
+    batch_number: int,
+    now: datetime,
+) -> bool:
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must include a timezone")
+
+    database_uri = database_path.resolve().as_uri() + "?mode=rw"
+
+    with closing(sqlite3.connect(database_uri, uri=True)) as connection:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+
+            row = connection.execute(
+                """
+                SELECT scheduled_at, status
+                FROM invoice_batches
+                WHERE batch_number = ?
+                """,
+                (batch_number,),
+            ).fetchone()
+
+            if row is None or row[1] != "processing":
+                raise ValueError("Processing batch not found")
+
+            scheduled_at = datetime.fromisoformat(row[0])
+            deadline = scheduled_at + timedelta(hours=3)
+
+            if now < scheduled_at:
+                raise ValueError("Batch scheduled time has not arrived")
+
+            if now >= deadline:
+                connection.execute(
+                    """
+                    UPDATE invoice_batches
+                    SET status = 'missed'
+                    WHERE batch_number = ? AND status = 'processing'
+                    """,
+                    (batch_number,),
+                )
+                return False
+
+    return True
+
+def load_schedule_end(database_path: Path) -> datetime | None:
+    if not database_path.is_file():
+        return None
+
+    database_uri = database_path.resolve().as_uri() + "?mode=ro"
+
+    with closing(sqlite3.connect(database_uri, uri=True)) as connection:
+        table_exists = connection.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'invoice_batches'
+            """
+        ).fetchone()
+
+        if table_exists is None:
+            return None
+
+        row = connection.execute(
+            """
+            SELECT scheduled_at
+            FROM invoice_batches
+            WHERE batch_number = 1
+            """
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    start_at = datetime.fromisoformat(row[0])
+
+    return start_at + timedelta(hours=24)

@@ -11,7 +11,10 @@ from app.batch_store import (
     list_pending_batches,
     save_batch_schedule,
     save_batch_payload, 
-    save_batch_result
+    save_batch_result,
+    mark_batch_for_review,
+    check_batch_send_window,
+    load_schedule_end
 )
 
 from app.invoices import Customer, InvoiceDraft
@@ -337,3 +340,87 @@ def test_claim_batch_respects_execution_window(
         number
         for number, _ in list_pending_batches(database_path)
     ]
+
+def test_mark_batch_for_review_prevents_new_claim(tmp_path):
+    database_path = tmp_path / "events.db"
+    start_at = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    save_batch_schedule(database_path, start_at)
+    claim_batch(database_path, 1, now=start_at)
+
+    mark_batch_for_review(database_path, 1)
+
+    assert read_batches(database_path)[0][2] == "needs_review"
+    assert claim_batch(database_path, 1, now=start_at) is False
+
+
+@pytest.mark.parametrize("batch_number", [2, 99])
+def test_mark_batch_for_review_requires_processing_batch(
+    tmp_path,
+    batch_number,
+):
+    database_path = tmp_path / "events.db"
+    start_at = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    save_batch_schedule(database_path, start_at)
+    original_rows = read_batches(database_path)
+
+    with pytest.raises(ValueError, match="Processing batch not found"):
+        mark_batch_for_review(database_path, batch_number)
+
+    assert read_batches(database_path) == original_rows
+
+@pytest.mark.parametrize(
+    ("elapsed", "allowed", "expected_status"),
+    [
+        (timedelta(hours=2, minutes=59), True, "processing"),
+        (timedelta(hours=3), False, "missed"),
+    ],
+)
+def test_send_window_rechecks_time_after_claim(
+    tmp_path,
+    elapsed,
+    allowed,
+    expected_status,
+):
+    database_path = tmp_path / "events.db"
+    start_at = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    save_batch_schedule(database_path, start_at)
+    claim_batch(database_path, 1, now=start_at)
+
+    result = check_batch_send_window(
+        database_path,
+        1,
+        now=start_at + elapsed,
+    )
+
+    assert result is allowed
+    assert read_batches(database_path)[0][2] == expected_status
+
+
+def test_send_window_rejects_unclaimed_batch(tmp_path):
+    database_path = tmp_path / "events.db"
+    start_at = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    save_batch_schedule(database_path, start_at)
+
+    with pytest.raises(ValueError, match="Processing batch not found"):
+        check_batch_send_window(database_path, 1, now=start_at)
+
+    assert read_batches(database_path)[0][2] == "pending"
+
+def test_schedule_end_uses_original_start_even_after_status_changes(tmp_path):
+    database_path = tmp_path / "events.db"
+    start_at = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    save_batch_schedule(database_path, start_at)
+
+    claim_batch(database_path, 1, now=start_at)
+    mark_batch_for_review(database_path, 1)
+
+    assert load_schedule_end(database_path) == (
+        start_at + timedelta(hours=24)
+    )
+
+
+def test_schedule_end_returns_none_without_database(tmp_path):
+    database_path = tmp_path / "events.db"
+
+    assert load_schedule_end(database_path) is None
+    assert not database_path.exists()
