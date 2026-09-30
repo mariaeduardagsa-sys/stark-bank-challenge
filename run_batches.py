@@ -76,6 +76,68 @@ def main() -> None:
     project = get_project()
     customers = build_sandbox_customers()
 
+    if args.watch:
+        end_at = load_schedule_end(database_path)
+
+        if end_at is None:
+            parser.exit(
+                status=1,
+                message="Planejamento não encontrado.\n",
+            )
+
+        if utc_now() >= end_at:
+            print("A janela de emissão de 24 horas já terminou.")
+            return
+
+        print(f"\nExecutor ativo até {end_at.isoformat()}.")
+        print("Use Ctrl+C para interromper.")
+
+        try:
+            run_batch_loop(
+                database_path=database_path,
+                customers=customers,
+                rng=Random(),
+                project=project,
+                end_at=end_at,
+            )
+        except KeyboardInterrupt:
+            print("\nExecutor interrompido.")
+            print(
+                "Confira os lotes em processing antes de retomar; "
+                "uma chamada interrompida pode ter chegado à API."
+            )
+
+        return
+    
+    if args.watch:
+        end_at = load_schedule_end(database_path)
+
+        if end_at is None:
+            parser.exit(
+                status=1,
+                message="Planejamento não encontrado.\n",
+            )
+
+        if utc_now() >= end_at:
+            print("A janela de emissão de 24 horas já terminou.")
+            return
+
+        print(f"\nExecutor ativo até {end_at.isoformat()}.")
+
+        try:
+            run_batch_loop(
+                database_path=database_path,
+                customers=customers,
+                rng=Random(),
+                project=project,
+                end_at=end_at,
+            )
+        except KeyboardInterrupt:
+            print("\nExecutor interrompido.")
+            print("Confira os lotes em processing antes de retomar.")
+
+        return
+
     results = run_due_batches(
         database_path=database_path,
         customers=customers,
