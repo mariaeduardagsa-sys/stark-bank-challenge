@@ -306,3 +306,14 @@ terminating the EC2 instance.
 - This is a single-instance deployment that requires monitoring, not a
   highly available production setup. Credits, ngrok limits, and server
   availability must be monitored during execution.
+
+### Cloud validation
+
+The application is running on AWS EC2 with systemd services for the API,
+ngrok tunnel, invoice scheduler, and event processor.
+
+The first scheduled batch completed successfully. Eight credit events
+were automatically processed, with their associated transfers confirmed
+as successful by the event processor.
+
+The full eight-batch, 24-hour execution is still in progress.
