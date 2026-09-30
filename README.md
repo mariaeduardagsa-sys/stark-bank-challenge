@@ -147,3 +147,23 @@ application restarts.
 
 Stored events are not processed into transfers yet.
 Automated tests simulate SDK validation and use temporary SQLite databases.
+
+## Sandbox validation
+
+A manual integration test confirmed the following flow:
+
+1. An Invoice was created and paid in the Sandbox.
+2. The signed webhook was validated and persisted locally.
+3. The credited event was processed.
+4. A transfer of 1,000 cents completed successfully, with zero fees.
+5. Processing the event again reused the existing transfer and marked
+   the event as processed.
+
+An earlier transfer failed with `Duplicated transfer`. Following Stark
+Bank support guidance, the external ID prefix was changed to
+`maria-eduarda-{invoice_id}`. The previous failure was preserved in the
+local review history.
+
+Validation: 166 automated tests passed.
+
+The continuous 24-hour batch run is still pending validation.
