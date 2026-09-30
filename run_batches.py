@@ -20,9 +20,9 @@ def main() -> None:
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="Executa uma rodada de emissão no Sandbox.",
+        help="Autoriza a emissão de Invoices no Sandbox.",
     )
-    
+
     parser.add_argument(
         "--watch",
         action="store_true",
@@ -30,7 +30,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    
+
     if args.watch and not args.execute:
         parser.error("--watch exige --execute")
 
@@ -106,35 +106,6 @@ def main() -> None:
                 "Confira os lotes em processing antes de retomar; "
                 "uma chamada interrompida pode ter chegado à API."
             )
-
-        return
-    
-    if args.watch:
-        end_at = load_schedule_end(database_path)
-
-        if end_at is None:
-            parser.exit(
-                status=1,
-                message="Planejamento não encontrado.\n",
-            )
-
-        if utc_now() >= end_at:
-            print("A janela de emissão de 24 horas já terminou.")
-            return
-
-        print(f"\nExecutor ativo até {end_at.isoformat()}.")
-
-        try:
-            run_batch_loop(
-                database_path=database_path,
-                customers=customers,
-                rng=Random(),
-                project=project,
-                end_at=end_at,
-            )
-        except KeyboardInterrupt:
-            print("\nExecutor interrompido.")
-            print("Confira os lotes em processing antes de retomar.")
 
         return
 
