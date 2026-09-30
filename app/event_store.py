@@ -40,6 +40,17 @@ def list_pending_events(database_path: Path) -> list[tuple[str, str]]:
     database_uri = database_path.resolve().as_uri() + "?mode=ro"
 
     with closing(sqlite3.connect(database_uri, uri=True)) as connection:
+        table_exists = connection.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'webhook_events'
+            """
+        ).fetchone()
+
+        if table_exists is None:
+            return []
+
         rows = connection.execute(
             """
             SELECT event_id, content
@@ -50,7 +61,6 @@ def list_pending_events(database_path: Path) -> list[tuple[str, str]]:
         ).fetchall()
 
     return rows
-
 
 def update_event_status(
     database_path: Path,

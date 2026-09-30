@@ -31,7 +31,7 @@ def test_same_invoice_keeps_same_external_id():
     repeated_transfer = build_transfer(repeated_credit)
 
     assert first_transfer.external_id == repeated_transfer.external_id
-    assert first_transfer.external_id == "invoice-invoice-123"
+    assert first_transfer.external_id == "maria-eduarda-invoice-123"
 
 
 def test_different_invoices_have_different_external_ids():
@@ -70,7 +70,7 @@ def test_find_transfer_returns_none_when_not_found():
         assert result is None
 
         mock_query.assert_called_once_with(
-            tags=["invoice-123"],
+            tags=["maria-eduarda-123"],
             user=project,
         )
 
@@ -173,7 +173,7 @@ def test_ensure_transfer_creates_when_not_found():
         sent_transfer = mock_create.call_args.args[0][0]
         
         assert sent_transfer.amount == 850
-        assert sent_transfer.external_id == "invoice-123"
+        assert sent_transfer.external_id == "maria-eduarda-123"
         assert mock_create.call_args.kwargs["user"] is project
 
 def test_ensure_transfer_recovers_operation_after_sdk_error():
@@ -215,3 +215,33 @@ def test_ensure_transfer_propagates_unresolved_sdk_error():
         assert captured.value is error
         assert mock_find.call_count == 2
         mock_create.assert_called_once()
+    
+def test_ensure_transfer_called_twice():
+    credit = InvoiceCredit(invoice_id="123", amount=850)
+    project = object()
+    
+    created = build_transfer(credit)
+    created.id = "transfer-456"
+    
+    with (
+        patch("app.transfers.find_existing_transfer") as mock_find,
+        patch("app.transfers.starkbank.transfer.create") as mock_create,
+    ):
+        #primeira consulta: nao existe
+        mock_find.side_effect = [None, created]
+        mock_create.return_value = [created]
+        
+        print("------ primeira chamada --------")
+        first = ensure_transfer(credit, project)
+        
+        print("------ segunda chamada --------")
+        second = ensure_transfer(credit, project)
+        
+        assert first is created
+        assert second is created
+        assert mock_find.call_count == 2
+        mock_create.assert_called_once()
+        
+        print(f"\nChamadas de criação: {mock_create.call_count}")
+        
+        

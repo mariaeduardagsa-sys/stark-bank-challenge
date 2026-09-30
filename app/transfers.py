@@ -17,8 +17,8 @@ def build_transfer(credit: InvoiceCredit) -> starkbank.Transfer:
         name="Stark Bank S.A.",
         tax_id="20.018.183/0001-80",
         account_type="payment",
-        external_id=f"invoice-{credit.invoice_id}",
-        tags=["challenge", f"invoice-{credit.invoice_id}"],
+        external_id=f"maria-eduarda-{credit.invoice_id}",
+        tags=["challenge", f"maria-eduarda-{credit.invoice_id}"],
     )
 
 def find_existing_transfer(
